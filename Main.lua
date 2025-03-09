@@ -1,90 +1,100 @@
--- Variáveis de configuração
-local showFOV = true
-local active = true
+-- Referências principais
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local currentQuest = nil
+local isFarming = false
+local isFarmingBoss = false
+local boss = nil
 
--- Cores das equipes
-local teamColor = Color3.new(0, 0, 1) -- Azul para equipe amiga
-local enemyColor = Color3.new(1, 0, 0) -- Vermelho para equipe inimiga
-
--- Função para criar ESP (Extra Sensory Perception)
-local function createESP(player)
-    local billboard = Instance.new("BillboardGui")
-    billboard.Adornee = player.Character.Head
-    billboard.Size = UDim2.new(0, 100, 0, 100)
-    billboard.AlwaysOnTop = true
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 0.5
-
-    -- Definir cor com base na equipe
-    if player.TeamColor == game.Players.LocalPlayer.TeamColor then
-        frame.BackgroundColor3 = teamColor
-    else
-        frame.BackgroundColor3 = enemyColor
+-- Função para escolher a quest com base no nível
+function getQuestForLevel(level)
+    if level >= 0 and level < 10 then
+        return "Quest1" -- Exemplo de nome da quest
+    elseif level >= 10 and level < 30 then
+        return "Quest2"
+    elseif level >= 30 then
+        return "Quest3"
     end
-
-    frame.Parent = billboard
-    billboard.Parent = player.Character.Head
+    return nil
 end
 
--- Função para marcar inimigos no FOV
-local function markEnemies()
-    for _, player in pairs(game.Players:GetPlayers()) do
-        if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            createESP(player)
+-- Função para farmar inimigos
+function farmEnemies()
+    local enemies = game.Workspace:FindPartsInRegion3(character.HumanoidRootPart.Position, Vector3.new(50, 50, 50), nil)
+    for _, enemy in pairs(enemies) do
+        if enemy:IsA("Model") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
+            -- Lógica para atacar o inimigo
+            -- Exemplo simples: atacar o inimigo com a ferramenta equipada
+            character.HumanoidRootPart.CFrame = enemy.HumanoidRootPart.CFrame
+            fireclickdetector(enemy:FindFirstChildOfClass("ClickDetector"))
         end
     end
 end
 
--- Função para ativar/desativar o script
-local function toggleScript()
-    active = not active
-    if active then
-        markEnemies()
-    else
-        -- Remover ESP
-        for _, player in pairs(game.Players:GetPlayers()) do
-            if player.Character and player.Character:FindFirstChild("Head") then
-                for _, child in pairs(player.Character.Head:GetChildren()) do
-                    if child:IsA("BillboardGui") then
-                        child:Destroy()
-                    end
-                end
-            end
-        end
+-- Função para farmar Bosses
+function farmBoss()
+    if boss and boss.Humanoid.Health > 0 then
+        -- Lógica para atacar o Boss
+        character.HumanoidRootPart.CFrame = boss.HumanoidRootPart.CFrame
+        fireclickdetector(boss:FindFirstChildOfClass("ClickDetector"))
     end
 end
 
--- Monitorar jogadores
-game.Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        if active then
-            createESP(player)
+-- Função de controle do menu
+function createFarmMenu()
+    local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+    local frame = Instance.new("Frame", screenGui)
+    frame.Size = UDim2.new(0, 200, 0, 300)
+    frame.Position = UDim2.new(0.8, 0, 0.1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+    local farmButton = Instance.new("TextButton", frame)
+    farmButton.Size = UDim2.new(0, 180, 0, 50)
+    farmButton.Position = UDim2.new(0, 10, 0, 10)
+    farmButton.Text = "Ativar Farm"
+    farmButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    farmButton.MouseButton1Click:Connect(function()
+        isFarming = true
+        while isFarming do
+            local level = player.Data.Level -- Exemplo de como pegar o nível
+            currentQuest = getQuestForLevel(level)
+            farmEnemies() -- Ativar farm dos inimigos
+            wait(2) -- Intervalo entre as ações
         end
     end)
-end)
 
--- Criar botão para ativar/desativar o script
-local screenGui = Instance.new("ScreenGui", game.Players.LocalPlayer.PlayerGui)
-local toggleButton = Instance.new("TextButton", screenGui)
-toggleButton.Size = UDim2.new(0, 200, 0, 50)
-toggleButton.Position = UDim2.new(0.5, -100, 0.9, -25)
-toggleButton.Text = "Toggle ESP"
-toggleButton.BackgroundColor3 = Color3.new(1, 1, 1)
-toggleButton.TextColor3 = Color3.new(0, 0, 0)
-toggleButton.TextScaled = true
+    local stopButton = Instance.new("TextButton", frame)
+    stopButton.Size = UDim2.new(0, 180, 0, 50)
+    stopButton.Position = UDim2.new(0, 10, 0, 70)
+    stopButton.Text = "Parar Farm"
+    stopButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    stopButton.MouseButton1Click:Connect(function()
+        isFarming = false
+    end)
 
-toggleButton.MouseButton1Click:Connect(function()
-    toggleScript()
-    if active then
-        toggleButton.Text = "Disable ESP"
-    else
-        toggleButton.Text = "Enable ESP"
-    end
-end)
+    local farmBossButton = Instance.new("TextButton", frame)
+    farmBossButton.Size = UDim2.new(0, 180, 0, 50)
+    farmBossButton.Position = UDim2.new(0, 10, 0, 130)
+    farmBossButton.Text = "Ativar Farm Boss"
+    farmBossButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+    farmBossButton.MouseButton1Click:Connect(function()
+        isFarmingBoss = true
+        while isFarmingBoss do
+            farmBoss() -- Ativar farm de Boss
+            wait(2) -- Intervalo entre as ações
+        end
+    end)
 
--- Inicializar
-if active then
-    markEnemies()
+    local stopBossButton = Instance.new("TextButton", frame)
+    stopBossButton.Size = UDim2.new(0, 180, 0, 50)
+    stopBossButton.Position = UDim2.new(0, 10, 0, 190)
+    stopBossButton.Text = "Parar Farm Boss"
+    stopBossButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+    stopBossButton.MouseButton1Click:Connect(function()
+        isFarmingBoss = false
+    end)
 end
+
+-- Chama a função para criar o menu
+createFarmMenu()
